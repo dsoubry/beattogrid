@@ -1,0 +1,207 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BeatToGrid - Audio Time Warping</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/web/style.css" />
+  <script src="https://unpkg.com/wavesurfer.js@6.6.4/dist/wavesurfer.min.js"></script>
+  <script>
+    // Verify WaveSurfer loaded correctly
+    window.addEventListener('DOMContentLoaded', () => {
+      if (typeof WaveSurfer === 'undefined') {
+        console.error('❌ WaveSurfer failed to load from CDN');
+        document.body.innerHTML = '<div style="padding: 20px; color: red; font-family: monospace;">❌ WaveSurfer library failed to load. Please check your internet connection and try refreshing the page.</div>';
+      } else {
+        console.log('✅ WaveSurfer loaded successfully:', WaveSurfer.VERSION || 'v6.x');
+      }
+    });
+  </script>
+</head>
+<body>
+  <div class="app-container">
+    <header class="app-toolbar">
+      <div class="toolbar-left">
+        <h1 class="app-title">BeatToGrid</h1>
+        <span class="app-subtitle">Audio Time Warping</span>
+      </div>
+      <div class="toolbar-right">
+        <div class="file-controls">
+          <label class="file-btn">
+            <span class="btn-icon">📁</span>
+            <span class="btn-text">Open File</span>
+            <input id="file" type="file" accept=".mp3,.wav,.m4a" />
+          </label>
+        </div>
+      </div>
+    </header>
+
+    <main class="app-main">
+      <!-- Upload & Progress Section -->
+      <div class="upload-section">
+        <div class="upload-progress-container" id="uploadProgressContainer" style="display: none;">
+          <div class="progress-header">
+            <span id="uploadLabel">Uploading...</span>
+            <span id="uploadPercent" class="progress-percent">0%</span>
+          </div>
+          <div class="progress-track">
+            <div class="progress-fill" id="uploadProgressFill"></div>
+          </div>
+        </div>
+        <div id="uploadProgress" class="upload-status"></div>
+        <div id="analysis" class="analysis-panel"></div>
+      </div>
+
+      <!-- Main Waveform Section -->
+      <div class="waveform-section">
+        <div class="waveform-header">
+          <div class="track-info">
+            <span class="track-name">No file loaded</span>
+          </div>
+          <div class="timeline-controls">
+            <span class="time-display" id="timeDisplay">00:00.000</span>
+            <span class="duration-display" id="durationDisplay">/ 00:00.000</span>
+          </div>
+        </div>
+        
+        <div class="waveform-container">
+          <div class="waveform-timeline">
+            <div id="wave" class="waveform-display"></div>
+          </div>
+        </div>
+        
+        <div class="transport-controls">
+          <button id="play" class="transport-btn play-btn" disabled>
+            <span class="btn-icon">▶</span>
+          </button>
+          <button class="transport-btn" disabled>
+            <span class="btn-icon">⏹</span>
+          </button>
+          
+          <div class="control-separator"></div>
+          
+          <button id="zoomOut" class="transport-btn zoom-btn" disabled title="Zoom Out">
+            <span class="btn-icon">🔍-</span>
+          </button>
+          <button id="zoomIn" class="transport-btn zoom-btn" disabled title="Zoom In">
+            <span class="btn-icon">🔍+</span>
+          </button>
+          <button id="zoomFit" class="transport-btn zoom-btn" disabled title="Zoom to Fit">
+            <span class="btn-icon">⭐</span>
+          </button>
+          
+          <div class="zoom-level-display">
+            <span id="zoomLevel">1x</span>
+          </div>
+          
+          <div class="control-separator"></div>
+          
+          <button id="setDownbeat" class="transport-btn anchor-btn" disabled>
+            <span class="btn-icon">📍</span>
+            <span class="btn-label">Set Anchor</span>
+          </button>
+        </div>
+        
+        <div class="anchor-status">
+          <div id="anchorInfo" class="anchor-info">Load an audio file to begin</div>
+          <div class="zoom-instructions">
+            <span class="zoom-hint">💡 Use zoom controls or <kbd>+</kbd>/<kbd>-</kbd> keys to zoom • <kbd>0</kbd> to fit • <kbd>Ctrl+scroll</kbd> on waveform</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Comparison Waveform Section (Initially Hidden) -->
+      <div class="comparison-section" id="comparisonSection" style="display: none;">
+        <div class="comparison-header">
+          <div class="comparison-title">
+            <span class="comparison-icon">🔄</span>
+            <span>Time Warp Comparison</span>
+          </div>
+          <div class="comparison-controls">
+            <button id="playComparison" class="transport-btn play-btn" disabled>
+              <span class="btn-icon">▶</span>
+              <span class="btn-label">Play Processed</span>
+            </button>
+          </div>
+        </div>
+        
+        <div class="comparison-container">
+          <div class="comparison-track">
+            <div class="track-label original-label">Original</div>
+            <div class="comparison-waveform">
+              <div id="waveOriginal" class="waveform-display comparison-wave"></div>
+            </div>
+          </div>
+          
+          <div class="comparison-track">
+            <div class="track-label processed-label">Time Warped</div>
+            <div class="comparison-waveform">
+              <div id="waveProcessed" class="waveform-display comparison-wave"></div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="comparison-info">
+          <div id="comparisonStats" class="comparison-stats"></div>
+        </div>
+      </div>
+
+      <!-- Parameters Panel -->
+      <div class="params-section">
+        <div class="params-header">
+          <h3>Time Warp Parameters</h3>
+        </div>
+        <div class="params-grid">
+          <div class="param-control">
+            <label class="param-label">Target BPM</label>
+            <input id="bpm" type="number" step="0.01" class="param-input" placeholder="120.00">
+          </div>
+          <div class="param-control">
+            <label class="param-label">Strength</label>
+            <input id="strength" type="number" step="0.05" min="0" max="1" value="0.7" class="param-input">
+          </div>
+          <div class="param-control">
+            <label class="param-label">Crossfade (ms)</label>
+            <input id="cf" type="number" min="0" max="20" value="10" class="param-input">
+          </div>
+        </div>
+        
+        <div class="process-controls">
+          <button id="process" class="process-btn" disabled>
+            <span class="process-icon">⚡</span>
+            <span class="process-text">Process Audio</span>
+            <div class="process-spinner" id="processLoader"></div>
+          </button>
+          <div id="processStatus" class="process-status"></div>
+        </div>
+        
+        <div class="export-controls">
+          <div class="export-options" id="exportOptions" style="display:none;">
+            <div class="export-header">
+              <span class="export-icon">💾</span>
+              <span>Export Options</span>
+            </div>
+            <div class="export-buttons">
+              <a id="downloadWav" class="export-btn wav-btn" style="display:none;">
+                <span class="download-icon">🎵</span>
+                <span class="download-text">Export WAV</span>
+                <span class="format-info">Lossless</span>
+              </a>
+              <a id="downloadMp3" class="export-btn mp3-btn" style="display:none;">
+                <span class="download-icon">🎶</span>
+                <span class="download-text">Export MP3</span>
+                <span class="format-info">320kbps</span>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="/web/app.js"></script>
+</body>
+</html>

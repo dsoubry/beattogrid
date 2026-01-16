@@ -21,6 +21,15 @@ STORAGE = APP_ROOT / "storage"
 UPLOADS = STORAGE / "uploads"
 OUTPUTS = STORAGE / "outputs"
 
+FFMPEG_EXE = os.environ.get("FFMPEG_EXE") or shutil.which("ffmpeg")
+RUBBERBAND_EXE = os.environ.get("RUBBERBAND_EXE") or shutil.which("rubberband")
+
+# Ensure rubberband is discoverable by subprocess calls inside pyrubberband
+if RUBBERBAND_EXE:
+    rb_dir = str(Path(RUBBERBAND_EXE).parent)
+    os.environ["PATH"] = rb_dir + os.pathsep + os.environ.get("PATH", "")
+
+
 for d in (UPLOADS, OUTPUTS):
     d.mkdir(parents=True, exist_ok=True)
 
@@ -34,8 +43,14 @@ JOBS: Dict[str, Dict[str, Any]] = {}
 
 
 def _ffmpeg_to_wav(in_path: Path, out_path: Path):
+    if not FFMPEG_EXE:
+        raise HTTPException(
+            status_code=500,
+            detail="ffmpeg.exe niet gevonden. Zet FFMPEG_EXE env var of voeg ffmpeg toe aan PATH."
+        )
+
     cmd = [
-        "ffmpeg", "-y",
+        FFMPEG_EXE, "-y",
         "-i", str(in_path),
         "-vn",
         "-acodec", "pcm_s16le",
@@ -43,7 +58,8 @@ def _ffmpeg_to_wav(in_path: Path, out_path: Path):
         "-ac", "2",
         str(out_path),
     ]
-    subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    subprocess.run(cmd, check=True)
+
 
 
 def _ensure_wav(path: Path) -> Path:

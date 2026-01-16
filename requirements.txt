@@ -1,4 +1,8 @@
+fastapi
+uvicorn[standard]
+python-multipart
+aiofiles
 numpy
-librosa
 soundfile
+librosa
 pyrubberband
