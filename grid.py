@@ -1,18 +1,20 @@
 import numpy as np
-from .models import BeatAnalysis, GridSettings
+from dataclasses import dataclass
+from .analyze import BeatAnalysis
 
-def build_corrected_grid(
-    analysis: BeatAnalysis,
-    settings: GridSettings
-):
-    beats = np.array(analysis.beats)
+@dataclass
+class GridSettings:
+    target_bpm: float
+    strength: float
+    anchor_beat_index: int = 0  # later: downbeat anchor
 
-    seconds_per_beat = 60.0 / settings.target_bpm
-    anchor = beats[settings.anchor_downbeat]
+def build_corrected_grid(analysis: BeatAnalysis, settings: GridSettings):
+    beats = np.array(analysis.beats, dtype=np.float64)
 
-    ideal_grid = anchor + np.arange(len(beats)) * seconds_per_beat
+    seconds_per_beat = 60.0 / float(settings.target_bpm)
+    idx = int(np.clip(settings.anchor_beat_index, 0, len(beats) - 1))
+    anchor = beats[idx]
 
-    # strength blending (DJ-feel behouden!)
-    corrected = beats + settings.strength * (ideal_grid - beats)
-
+    ideal = anchor + np.arange(len(beats)) * seconds_per_beat
+    corrected = beats + float(settings.strength) * (ideal - beats)
     return corrected.tolist()
